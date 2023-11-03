@@ -73,34 +73,47 @@ class STRESS:
         """
         return pow(inner(u, u), 0.5)
 
+def main():
+    # create a mesh and refined mesh
+    mesh = UnitCubeMesh(10, 10, 10)
+    refined_mesh = refine(mesh)
 
-mesh = UnitCubeMesh(10, 10, 10)
-refined_mesh = refine(mesh)
+    # create function spaces for the two meshes
+    V2 = VectorFunctionSpace(mesh, "CG", 2)
+    V1 = VectorFunctionSpace(refined_mesh, "CG", 1)
 
-V2 = VectorFunctionSpace(mesh, "CG", 2)
-V1 = VectorFunctionSpace(refined_mesh, "CG", 1)
+    # genereate some function as an example
+    f = Expression(("sin(x[0]*pi)", "cos(x[1]*pi)", "x[2]"), degree=2)
 
+    # First, interpolate the function onto the higher order function space
+    u_2 = interpolate(f, V2)
+    # transfer matrix here is P2 --> P1
+    transfer_matrix = PETScDMCollection.create_transfer_matrix(V2, V1)
 
-f = Expression(("sin(x[0]*pi)", "cos(x[1]*pi)", "x[2]"), degree=2)
+    # create a function on the lower order function space
+    u_1 = Function(V1)
+    # Interpolate the function onto the lower order function space
+    u_1.vector()[:] = transfer_matrix * u_2.vector()
 
-u_2 = interpolate(f, V2)
+    # compute pseudo-stress on the lower order function space
+    stress = STRESS(u=u_1, p=0.0, nu=1.0, mesh=refined_mesh)
+    tau = stress()
 
-transfer_matrix = PETScDMCollection.create_transfer_matrix(V2, V1)
+    # Now, we will re-interpolate the function onto the higher order function space
+    back_transfer_matrix = PETScDMCollection.create_transfer_matrix(V1, V2)
 
-u_1 = Function(V1)
-u_1.vector()[:] = transfer_matrix * u_2.vector()
+    # create a function on the higher order function space
+    u_2_back = Function(V2)
 
-stress = STRESS(u_1, 0.0, 1.0, refined_mesh)
-tau = stress()
+    # Interpolate the function onto the higher order function space
+    u_2_back.vector()[:] = back_transfer_matrix * u_1.vector()
 
-File("tau.pvd") << tau
+    # Again, compute the pseudo-stress on the higher order function space
+    stress_2 = STRESS(u=u_2_back, p=0.0, nu=1.0, mesh=mesh)
+    tau_2 = stress_2()
 
-back_transfer_matrix = PETScDMCollection.create_transfer_matrix(V1, V2)
+    File("tau.pvd") << tau
+    File("tau_2.pvd") << tau_2
 
-u_2_back = Function(V2)
-u_2_back.vector()[:] = back_transfer_matrix * u_1.vector()
-
-stress_2 = STRESS(u_2_back, 0.0, 1.0, mesh)
-tau_2 = stress_2()
-
-File("tau_2.pvd") << tau_2
+if __name__ == '__main__':
+    main()
