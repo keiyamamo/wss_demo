@@ -1,7 +1,7 @@
 from dolfin import *
 import numpy as np
 
-
+# ------ epsilon(u) and class STRESS are direct copies from VaMPy ---------
 def epsilon(u):
     """
     Computes the strain-rate tensor
@@ -72,6 +72,8 @@ class STRESS:
             norm (Power): Norm as expression
         """
         return pow(inner(u, u), 0.5)
+
+# ------ epsilon(u) and class STRESS are direct copies from VaMPy ---------
 
 def main():
     # create a mesh and refined mesh
